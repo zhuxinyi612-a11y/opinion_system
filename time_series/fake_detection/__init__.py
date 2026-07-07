@@ -3,26 +3,17 @@
 ======================
 对采集到的信息进行真实性判断，给出内容真实置信度（0~100%）
 
-v3.0 改动 (#13):
-  - 旧版：rumor_keyword_hits 靠20个硬编码关键词计数，改个表述就绕过
-  - 新版：TF-IDF 字符 n-gram (1~3字) 自动从训练数据中学哪些短语模式
-          是虚假信号。关键词特征从"手写"变成"学到的"。
-
-v2.0 改动:
-  - 手写规则 → 逻辑回归 + GridSearchCV
-
-数据依赖：
-  - 训练阶段：CED 公开数据集（已有text+metadata）
-  - 预测阶段：1/2/3 号队友提供的文本+元数据
-
 使用方式：
+    from time_series.fake_detection import FakeDetector, FakeDetectorTrainer
     trainer = FakeDetectorTrainer()
-    model, report = trainer.train_with_text(texts, metadata_list, labels)
+    model, report = trainer.train(...)
     detector = FakeDetector(model=model)
     result = detector.evaluate(text, metadata)
 """
 
 from __future__ import annotations
+
+__all__ = ["FeatureExtractor", "FakeDetectorTrainer", "FakeDetector"]
 
 import math
 import pickle

@@ -11,7 +11,7 @@
 """
 
 from time_series.utils.mock_data import generate_mock_events, generate_mock_propagation_data
-from time_series.lifecycle import LifecycleDetector, plot_lifecycle
+from time_series.lifecycle import LifecycleDetector
 from time_series.propagation import PropagationTracer
 from time_series.fake_detection import FakeDetector
 
