@@ -28,8 +28,6 @@ def demo_lifecycle():
     event_names = ["事件A (公共卫生)", "事件B (科技争议)", "事件C (明星八卦)"]
 
     for i, evt in enumerate(events):
-        result = detector.detect(evt)
-
         records = evt["timeseries"]
 
         # 模拟三个时刻的检测：早期(第15小时)、中期(第35小时)、后期(第60小时)

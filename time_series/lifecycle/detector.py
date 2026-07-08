@@ -14,12 +14,15 @@ from .critical import detect_critical_slowing_down
 
 class LifecycleDetector:
     def __init__(self, window_size=6, growth_threshold=0.15,
-                 decline_threshold=-0.10, peak_count_threshold=30, latent_count_threshold=5):
+                 decline_threshold=-0.10, peak_count_threshold=30, latent_count_threshold=5,
+                 ema_alpha=0.30):
         self.window_size = window_size
         self.growth_threshold = growth_threshold
         self.decline_threshold = decline_threshold
         self.peak_count_threshold = peak_count_threshold
         self.latent_count_threshold = latent_count_threshold
+        self.ema_alpha = ema_alpha       # EMA 平滑系数: 0=完全锁定, 1=不平滑
+        self._current_event_id = ""       # 当前处理的事件 ID（用于 EMA 分组）
         self._last_index_breakdown = {}
 
     @staticmethod
@@ -44,6 +47,9 @@ class LifecycleDetector:
         records = event_data["timeseries"]
         if not records:
             return {"event_id": event_data.get("event_id"), "current_stage": STAGE_UNKNOWN, "error": "没有数据"}
+
+        # 设置当前事件 ID，让 classify_stage 的 EMA 按事件分组
+        self._current_event_id = event_data.get("event_id", "")
 
         counts = [r["news_count"] for r in records]
         times = [self._parse_time(r["time"]) for r in records]
