@@ -37,13 +37,14 @@ pip install -r requirements.txt
 python demo.py
 ```
 
-## 三个模块
+## 四个模块
 
 | 模块 | 类 | 输入 | 输出 |
 |------|-----|------|------|
 | 生命周期 | `LifecycleDetector` | 按小时聚合的事件数据 | 阶段 + 概率 + 预测 + 预警 |
 | 传播溯源 | `PropagationTracer` | 转发关系节点列表 | 传播图 + PageRank + 反事实 |
 | 虚假检测 | `FakeDetector` | 文本 + 元数据 | 可信/待验证/疑似虚假 |
+| 跨事件因果 | `CrossEventAnalyzer` | 多个事件的时间序列 | 格兰杰因果图 + p值 |
 
 ## 数据集
 

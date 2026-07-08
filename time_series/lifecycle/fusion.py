@@ -13,7 +13,7 @@ def remove_diurnal_cycle(records: list[dict[str, Any]]) -> tuple[list[dict[str, 
     hourly_count = [0] * 24
     for r in records:
         h = r["time"].hour
-        hourly_sum[h] += r.get("article_count", 0)
+        hourly_sum[h] += r.get("news_count", 0)
         hourly_count[h] += 1
 
     hourly_avg = [hourly_sum[h] / hourly_count[h] if hourly_count[h] > 0 else 0.0 for h in range(24)]
@@ -33,8 +33,8 @@ def remove_diurnal_cycle(records: list[dict[str, Any]]) -> tuple[list[dict[str, 
     for r in records:
         factor = hourly_factor[r["time"].hour] if hourly_factor[r["time"].hour] > 0.1 else 1.0
         rec = dict(r)
-        rec["article_count"] = int(round(r.get("article_count", 0) / factor))
-        rec["_raw_article_count"] = r.get("article_count", 0)
+        rec["news_count"] = int(round(r.get("news_count", 0) / factor))
+        rec["_raw_article_count"] = r.get("news_count", 0)
         rec["_diurnal_factor"] = round(factor, 3)
         decycled.append(rec)
 
@@ -47,17 +47,17 @@ def compute_heat_index(records: list[dict[str, Any]], detector: Any) -> list[int
     if n == 0:
         return []
 
-    raw_volume = [r.get("article_count", 0) for r in records]
+    raw_volume = [r.get("news_count", 0) for r in records]
     raw_sentiment = []
     for r in records:
-        pos = r.get("sentiment_positive_ratio", 0.33)
-        neg = r.get("sentiment_negative_ratio", 0.33)
+        pos = r.get("positive_ratio", 0.33)
+        neg = r.get("negative_ratio", 0.33)
         raw_sentiment.append(1.0 - abs(pos - neg))
     raw_spread = []
     for r in records:
         pdist = r.get("platform_distribution", {})
         raw_spread.append(sum(1 for v in pdist.values() if v > 0) if isinstance(pdist, dict) else 1)
-    raw_engagement = [r.get("avg_heat_score", 0) for r in records]
+    raw_engagement = [r.get("hot_score", 0) for r in records]
 
     def _norm(vals, default_max=1.0):
         vmax = max(max(vals), default_max)

@@ -108,15 +108,14 @@ def generate_mock_events(num_events: int = 3) -> list[dict[str, Any]]:
         "event_title": "...",
         "category": "社会/科技/娱乐",
         "start_time": datetime对象,
-        "records": [
+        "timeseries": [
           {
             "time": datetime对象,
-            "article_count": 该小时报道量,
-            "sentiment_positive_ratio": 正面比例 0~1,
-            "sentiment_negative_ratio": 负面比例 0~1,
-            "sentiment_neutral_ratio": 中性比例 0~1,
-            "avg_heat_score": 平均热度分 0~100,
-            "platform_distribution": {"微博": 30, "知乎": 10, ...}
+            "news_count": 该小时报道量,
+            "positive_ratio": 正面比例 0~1,
+            "negative_ratio": 负面比例 0~1,
+            "neutral_ratio": 中性比例 0~1,
+            "hot_score": 平均热度分 0~100
           },
           ...
         ]
@@ -168,11 +167,11 @@ def generate_mock_events(num_events: int = 3) -> list[dict[str, Any]]:
 
             records.append({
                 "time": t,
-                "article_count": count,
-                "sentiment_positive_ratio": pos,
-                "sentiment_negative_ratio": neg,
-                "sentiment_neutral_ratio": neu,
-                "avg_heat_score": round(min(count * 2.5 + random.uniform(-5, 5), 100), 1),
+                "news_count": count,
+                "positive_ratio": pos,
+                "negative_ratio": neg,
+                "neutral_ratio": neu,
+                "hot_score": round(min(count * 2.5 + random.uniform(-5, 5), 100), 1),
                 "platform_distribution": plat_dist,
             })
 
@@ -181,7 +180,7 @@ def generate_mock_events(num_events: int = 3) -> list[dict[str, Any]]:
             "event_title": titles_pool[i % len(titles_pool)],
             "category": categories[i % len(categories)],
             "start_time": base_time,
-            "records": records,
+            "timeseries": records,
         })
 
     return events
@@ -256,8 +255,8 @@ if __name__ == "__main__":
     print(f"时间范围: {evt['records'][0]['time']} ~ {evt['records'][-1]['time']}")
     print()
     print("每小时报道量（折线图预览）:")
-    for r in evt["records"][::4]:  # 每4小时打印一次
-        bar = "█" * (r["article_count"] // 2)
+    for r in evt["timeseries"][::4]:  # 每4小时打印一次
+        bar = "█" * (r["news_count"] // 2)
         print(f"  {r['time'].strftime('%m/%d %H:%M')} | {r['article_count']:3d} 篇 {bar}")
 
     print()

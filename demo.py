@@ -30,7 +30,7 @@ def demo_lifecycle():
     for i, evt in enumerate(events):
         result = detector.detect(evt)
 
-        records = evt["records"]
+        records = evt["timeseries"]
 
         # 模拟三个时刻的检测：早期(第15小时)、中期(第35小时)、后期(第60小时)
         snapshots = {
@@ -44,7 +44,7 @@ def demo_lifecycle():
         print(f"{'─' * 50}")
 
         for label, snapshot in snapshots.items():
-            temp_event = {"event_id": evt["event_id"], "records": snapshot}
+            temp_event = {"event_id": evt["event_id"], "timeseries": snapshot}
             r = detector.detect(temp_event)
             print(f"  [{label}]  ->  阶段: {r['current_stage']}  "
                   f"趋势: {r['trend_direction']}  "

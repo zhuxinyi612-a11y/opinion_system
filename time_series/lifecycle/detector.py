@@ -23,11 +23,11 @@ class LifecycleDetector:
         self._last_index_breakdown = {}
 
     def detect(self, event_data):
-        records = event_data["records"]
+        records = event_data["timeseries"]
         if not records:
             return {"event_id": event_data.get("event_id"), "current_stage": STAGE_UNKNOWN, "error": "没有数据"}
 
-        counts = [r["article_count"] for r in records]
+        counts = [r["news_count"] for r in records]
         times = [r["time"] for r in records]
         decycled_records, diurnal_info = remove_diurnal_cycle(records)
         composite_index = compute_heat_index(decycled_records, self)
