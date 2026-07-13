@@ -13,6 +13,42 @@ TAG_RE = re.compile(r"<[^>]+>")
 SPACE_RE = re.compile(r"\s+")
 
 
+def remove_source_suffix(text: str, source: str = "") -> str:
+    """
+    删除标题/正文末尾的网站来源后缀。
+    例如：
+    直击抚顺暴雨！危化品车辆侧翻，消防员徒步1公里转运伤员 - 人民网
+    ->
+    直击抚顺暴雨！危化品车辆侧翻，消防员徒步1公里转运伤员
+    """
+    if not text:
+        return ""
+
+    text = str(text).strip()
+
+    # 1. 优先删除当前 source 字段对应的后缀
+    if source:
+        source = str(source).strip()
+        if source:
+            pattern = rf"\s*[-—–_|｜]\s*{re.escape(source)}\s*$"
+            text = re.sub(pattern, "", text).strip()
+
+    # 2. 常见媒体来源兜底删除
+    common_sources = [
+        "人民网", "新华网", "央视新闻", "中国新闻网", "中新网",
+        "澎湃新闻", "腾讯新闻", "网易新闻", "新浪新闻", "搜狐新闻",
+        "凤凰网", "环球网", "光明网", "央广网", "中国网",
+        "参考消息", "财新网", "界面新闻", "观察者网",
+        "北京日报", "新京报", "红星新闻", "封面新闻",
+        "上游新闻", "极目新闻", "南方都市报", "每日经济新闻",
+        "第一财经", "看看新闻", "海外网"
+    ]
+
+    source_pattern = "|".join(re.escape(s) for s in common_sources)
+    text = re.sub(rf"\s*[-—–_|｜]\s*({source_pattern})\s*$", "", text).strip()
+
+    return text
+
 def clean_text(value: Any) -> str:
     """清洗 HTML、换行、多余空格。"""
     if value is None:
@@ -22,6 +58,7 @@ def clean_text(value: Any) -> str:
     text = TAG_RE.sub(" ", text)
     text = SPACE_RE.sub(" ", text)
     return text.strip()
+
 
 
 def normalize_time(value: Any) -> str:
@@ -82,12 +119,17 @@ def make_record(
     统一输出后端需要的字段：id/title/text/time/source/url。
     id 在 main.py 里统一分配。
     """
+    cleaned_source = clean_text(source)
+
+    cleaned_title = remove_source_suffix(title, cleaned_source)
+    cleaned_text = remove_source_suffix(text, cleaned_source)
+
     return {
         "id": record_id,
-        "title": clean_text(title),
-        "text": clean_text(text),
+        "title": cleaned_title,
+        "text": cleaned_text,
         "time": normalize_time(time_value),
-        "source": clean_text(source),
+        "source": cleaned_source,
         "url": clean_text(url),
     }
 

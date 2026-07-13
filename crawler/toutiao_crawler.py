@@ -1,56 +1,127 @@
-"""
-今日头条采集：先尝试公开搜索接口；失败或结果太少时，自动使用公开搜索索引兜底。
-"""
+import os
+import re
+import time
+import random
+import urllib.parse
 from typing import Dict, List
 
-from .http_client import safe_get
-from .save_data import make_record, clean_text
-from .search_fallback import crawl_site_search
+import requests
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
-TOUTIAO_SEARCH_API = "https://www.toutiao.com/api/search/content/"
-
-
-def normalize_toutiao_url(url: str) -> str:
-    if not url:
-        return ""
-    if url.startswith("//"):
-        return "https:" + url
-    if url.startswith("/"):
-        return "https://www.toutiao.com" + url
-    return url
+from crawler.save_data import make_record
 
 
-def _crawl_api(keyword: str, max_pages: int) -> List[Dict]:
-    records: List[Dict] = []
-    headers = {"Referer": "https://www.toutiao.com/search/", "Accept": "application/json,text/plain,*/*"}
-    for page in range(1, max_pages + 1):
-        offset = (page - 1) * 20
-        params = {"aid": 24, "app_name": "web_search", "offset": offset, "format": "json", "keyword": keyword, "count": 20, "from": "search_tab", "pd": "synthesis"}
-        resp = safe_get(TOUTIAO_SEARCH_API, params=params, platform="toutiao", headers=headers)
-        if not resp:
+def get_headers() -> Dict[str, str]:
+    load_dotenv()
+
+    cookie = os.getenv("TOUTIAO_COOKIE", "").strip()
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Referer": "https://www.toutiao.com/",
+        "Connection": "keep-alive",
+    }
+
+    if cookie:
+        headers["Cookie"] = cookie
+
+    return headers
+
+
+def clean_text(text: str) -> str:
+    text = re.sub(r"<.*?>", " ", text or "")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def extract_from_html(html: str, keyword: str) -> List[Dict]:
+    records = []
+
+    soup = BeautifulSoup(html, "lxml")
+
+    # 方式一：从 a 标签里提取搜索结果
+    for a in soup.find_all("a"):
+        title = clean_text(a.get_text(" ", strip=True))
+        href = a.get("href", "")
+
+        if not title:
             continue
-        try:
-            payload = resp.json()
-        except Exception:
-            print("[WARN] toutiao 返回的不是 JSON，可能需要 Cookie")
+
+        if keyword not in title and len(title) < 6:
             continue
-        for item in payload.get("data", []) or []:
-            title = item.get("title") or item.get("display", {}).get("title") or ""
-            abstract = item.get("abstract") or item.get("description") or item.get("display", {}).get("summary") or ""
-            source = item.get("source") or item.get("media_name") or "今日头条"
-            url = item.get("article_url") or item.get("share_url") or item.get("display_url") or item.get("url") or ""
-            time_value = item.get("display_time") or item.get("publish_time") or ""
-            title = clean_text(title)
-            abstract = clean_text(abstract)
-            if not title and not abstract:
-                continue
-            records.append(make_record(title=title or abstract[:50], text=abstract or title, source=source, time_value=time_value, url=normalize_toutiao_url(url)))
+
+        if href.startswith("//"):
+            href = "https:" + href
+        elif href.startswith("/"):
+            href = "https://www.toutiao.com" + href
+
+        if "toutiao.com" not in href and href:
+            continue
+
+        records.append(
+            make_record(
+                title=title,
+                text=title,
+                source="今日头条",
+                time_value="",
+                url=href,
+            )
+        )
+
     return records
 
 
-def crawl(keyword: str, max_pages: int = 3) -> List[Dict]:
-    records = _crawl_api(keyword, max_pages=max_pages)
-    if len(records) < 5:
-        print("[INFO] 今日头条 API 数据较少，启用公开搜索索引兜底。")
-        records.extend(crawl_site_search(keyword, platform_name="今日头条", domains=["toutiao.com", "www.toutiao.com"], max_pages=max_pages))
+def crawl(keyword: str, max_pages: int = 1) -> List[Dict]:
+    """
+    今日头条搜索采集。
+    说明：
+    - 优先使用 .env 里的 TOUTIAO_COOKIE
+    - 不破解验证码、不绕签名
+    - 如果页面强风控，返回 0 条是正常的
+    """
+
+    load_dotenv()
+
+    records = []
+    headers = get_headers()
+
+    safe_pages = min(max_pages, int(os.getenv("AUTH_MAX_PAGES", "2")))
+
+    for page in range(1, safe_pages + 1):
+        encoded = urllib.parse.quote(keyword)
+
+        # 今日头条搜索页
+        url = f"https://www.toutiao.com/search/?keyword={encoded}"
+
+        try:
+            resp = requests.get(url, headers=headers, timeout=20)
+        except Exception as e:
+            print(f"[WARN] 今日头条请求异常：{e}")
+            break
+
+        if resp.status_code != 200:
+            print(f"[WARN] 今日头条 HTTP {resp.status_code}: {url}")
+            break
+
+        html = resp.text or ""
+
+        # 常见风控/登录提示
+        if "captcha" in html.lower() or "验证" in html[:1000] or "登录" in html[:1000]:
+            print("[WARN] 今日头条可能触发登录/验证/风控，当前页面不适合继续采集")
+            break
+
+        batch = extract_from_html(html, keyword)
+        print(f"[INFO] 今日头条 keyword='{keyword}' page={page} 解析 {len(batch)} 条")
+
+        records.extend(batch)
+
+        time.sleep(random.uniform(6, 15))
+
     return records

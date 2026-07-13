@@ -1,7 +1,10 @@
 import os
 import time
+import re
+from pathlib import Path
 from datetime import date, timedelta
 from typing import Dict, List
+
 
 from dotenv import load_dotenv
 
@@ -40,30 +43,71 @@ def parse_collection_ids() -> List[int]:
 
     return ids or DEFAULT_COLLECTION_IDS
 
+
 def parse_source_ids() -> List[int]:
     """
-    从 .env 读取 MEDIACLOUD_SOURCE_IDS。
-    例如：
-    MEDIACLOUD_SOURCE_IDS=12345,67890,11111
+    读取 MediaCloud source_ids。
+
+    优先级：
+    1. 如果 MEDIACLOUD_USE_SOURCE_IDS=0，则不使用 source_ids
+    2. 优先读取 .env 里的 MEDIACLOUD_SOURCE_IDS
+    3. 如果 .env 为空，就读取 crawler/mediacloud_source_ids.txt
+    4. 支持用 MEDIACLOUD_SOURCE_OFFSET + MEDIACLOUD_MAX_SOURCE_IDS 分批跑
     """
+
+    use_source_ids = os.getenv("MEDIACLOUD_USE_SOURCE_IDS", "1").strip()
+
+    if use_source_ids in ("0", "false", "False", "no", "NO"):
+        print("[INFO] MEDIACLOUD_USE_SOURCE_IDS=0，本次不使用 source_ids")
+        return []
+
     raw = os.getenv("MEDIACLOUD_SOURCE_IDS", "").strip()
 
     if not raw:
-        return []
+        source_file = Path(__file__).with_name("mediacloud_source_ids.txt")
+        if source_file.exists():
+            raw = source_file.read_text(encoding="utf-8").strip()
 
-    ids = []
+    ids: List[int] = []
 
-    for part in raw.split(","):
+    for part in re.split(r"[,\s]+", raw):
         part = part.strip()
         if not part:
             continue
 
         try:
-            ids.append(int(part))
+            sid = int(part)
+            if sid not in ids:
+                ids.append(sid)
         except ValueError:
             print(f"[WARN] 无效的 MediaCloud source id：{part}")
 
-    return ids
+    if not ids:
+        print("[WARN] 没有读取到 MediaCloud source_ids")
+        return []
+
+    max_source_ids = int(os.getenv("MEDIACLOUD_MAX_SOURCE_IDS", "150"))
+    source_offset = int(os.getenv("MEDIACLOUD_SOURCE_OFFSET", "0"))
+
+    total_source_ids = len(ids)
+
+    start = source_offset
+    end = source_offset + max_source_ids
+
+    batch_ids = ids[start:end]
+
+    if batch_ids:
+        print(
+            f"[INFO] source_ids 共 {total_source_ids} 个，"
+            f"本次使用第 {start + 1}-{start + len(batch_ids)} 个"
+        )
+    else:
+        print(
+            f"[WARN] source_ids 共 {total_source_ids} 个，"
+            f"但 offset={source_offset} 已经超出范围，本次没有可用 source_ids"
+        )
+
+    return batch_ids
 
 def crawl(keyword: str, max_pages: int = 1) -> List[Dict]:
     """
@@ -91,7 +135,8 @@ def crawl(keyword: str, max_pages: int = 1) -> List[Dict]:
     source_ids = parse_source_ids()
 
     print(f"[INFO] MediaCloud collection_ids={collection_ids}")
-    print(f"[INFO] MediaCloud source_ids={source_ids}")
+    print(f"[INFO] MediaCloud source_ids 数量={len(source_ids)}")
+    print(f"[INFO] MediaCloud source_ids 前10个={source_ids[:10]}")
 
     # 如果配置了 source_ids，就优先用 source_ids
     # 因为中文媒体最好按具体媒体源搜
